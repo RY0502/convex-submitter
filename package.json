@@ -1,0 +1,22 @@
+{
+  "name": "agnes-convex-submitter",
+  "version": "1.0.0",
+  "description": "Scheduled Convex backend service to reliably submit pending Agnes scene videos with resilient capacity retries and key rotation",
+  "type": "module",
+  "main": "dist/standalone.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "submit:once": "tsc && node dist/standalone.js"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.14.0",
+    "convex": "^1.17.4",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.6.3"
+  }
+}
