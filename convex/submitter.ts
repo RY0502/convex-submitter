@@ -148,10 +148,12 @@ export async function executePendingSubmissions(): Promise<SubmissionRunResult> 
   const submitted: SubmissionRunResult["details"]["submitted"] = [];
   const failed: SubmissionRunResult["details"]["failed"] = [];
 
+  const TIME_BUDGET_MS = 540_000; // 9 minutes
+  const runDeadlineMs = startTime + TIME_BUDGET_MS;
+
   for (const scene of candidateBatch) {
-    const TIME_BUDGET_MS = 90_000;
-    if (Date.now() - startTime > TIME_BUDGET_MS) {
-      log(`Run time reached safety budget (${Math.round((Date.now() - startTime) / 1000)}s). Yielding remaining scene(s) to next scheduled invocation.`);
+    if (Date.now() >= runDeadlineMs) {
+      log(`Run time reached 9-minute budget (${Math.round((Date.now() - startTime) / 1000)}s). Yielding remaining scene(s) to next scheduled invocation.`);
       break;
     }
 
@@ -179,7 +181,7 @@ export async function executePendingSubmissions(): Promise<SubmissionRunResult> 
         seconds: scene.provider_duration_seconds,
         seed: scene.seed ?? undefined,
         referenceImageUrls: referenceUrls,
-      });
+      }, runDeadlineMs);
 
       const nowIso = new Date().toISOString();
       let envelope: any;
@@ -281,8 +283,8 @@ export async function executePendingSubmissions(): Promise<SubmissionRunResult> 
         console.error(`[AgnesSubmitter] Failed to update error state in Turso for scene ${scene.id}:`, dbErr);
       }
 
-      if (errMsg.includes("All Agnes keys in cooldown") || errMsg.includes("cooldown for")) {
-        log(`All Agnes API keys currently in cooldown window. Ending current batch cleanly to yield to next scheduled run.`);
+      if (Date.now() >= runDeadlineMs || errMsg.includes("9-minute execution budget reached") || errMsg.includes("exceeds 9-minute run budget")) {
+        log(`9-minute execution budget reached. Ending current run batch cleanly.`);
         break;
       }
     }

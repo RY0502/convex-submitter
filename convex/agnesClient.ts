@@ -123,7 +123,7 @@ export class AgnesClient {
   constructor(options: AgnesClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? process.env.AGNES_BASE_URL ?? "https://apihub.agnes-ai.com").replace(/\/+$/, "");
     this.keys = options.keys && options.keys.length > 0 ? options.keys : loadAgnesApiKeys();
-    this.capacityMaxRetries = options.capacityMaxRetries ?? Number(process.env.AGNES_CAPACITY_MAX_RETRIES ?? 7);
+    this.capacityMaxRetries = options.capacityMaxRetries ?? Number(process.env.AGNES_CAPACITY_MAX_RETRIES ?? 30);
     this.capacityRetryIntervalMs = options.capacityRetryIntervalMs ?? Number(process.env.AGNES_CAPACITY_RETRY_INTERVAL_MS ?? 5000);
     this.capacityRetryJitterMs = options.capacityRetryJitterMs ?? Number(process.env.AGNES_CAPACITY_RETRY_JITTER_MS ?? 3000);
     this.requestTimeoutMs = options.requestTimeoutMs ?? 60000;
@@ -133,7 +133,7 @@ export class AgnesClient {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async submitVideo(request: AgnesSubmitRequest): Promise<AgnesSubmitSuccess> {
+  async submitVideo(request: AgnesSubmitRequest, deadlineMs?: number): Promise<AgnesSubmitSuccess> {
     if (this.keys.length === 0) {
       throw new Error("No Agnes API keys configured. Set AGNES_API_KEY_1 (or AGNES_API_KEY)");
     }
@@ -174,6 +174,9 @@ export class AgnesClient {
     let lastAttemptedIndex = -1;
 
     while (activeKeys.length > 0) {
+      if (deadlineMs && Date.now() >= deadlineMs) {
+        throw new Error(`9-minute execution budget reached. Yielding to next scheduled invocation.`);
+      }
       let chosenIndex = -1;
       const now = Date.now();
 
@@ -195,8 +198,8 @@ export class AgnesClient {
         }
         const earliestKey = activeKeys[earliestIndex];
         const waitMs = Math.max(0, earliestKey.nextEligibleAtMs - Date.now());
-        if (waitMs > 20000) {
-          throw new Error(`All Agnes keys in cooldown for ${Math.round(waitMs / 1000)}s. Pausing run to yield to next scheduled cycle.`);
+        if (deadlineMs && Date.now() + waitMs >= deadlineMs) {
+          throw new Error(`All keys in cooldown and wait (${Math.round(waitMs / 1000)}s) exceeds 9-minute run budget. Yielding to next scheduled invocation.`);
         }
         if (waitMs > 0) {
           console.log(`[AgnesClient] All keys in cooldown. Waiting ${waitMs}ms for ${earliestKey.configuredKey.keyLabel} (attempt ${earliestKey.retryCount + 1}/${this.capacityMaxRetries})`);
