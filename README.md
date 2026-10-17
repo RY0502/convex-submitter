@@ -49,8 +49,8 @@ graph TD
 
 ```ini
 # Convex
-CONVEX_URL=https://beloved-seahorse-139.convex.cloud/
-CONVEX_DEPLOY_KEY=dev:beloved-seahorse-139|...
+CONVEX_URL=
+CONVEX_DEPLOY_KEY=
 
 # Turso DB
 TURSO_DATABASE_URL=libsql://deepagent-db-ry0502.aws-ap-south-1.turso.io
