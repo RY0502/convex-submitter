@@ -1,6 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+function toCdnUrl(url: string | null): string | null {
+  if (!url) return null;
+  const cdn = (process.env.CONVEX_CDN_URL || "https://convex-portrait-cache.ravi-y0102.workers.dev").replace(/\/+$/gu, "");
+  return url.replace(/^https?:\/\/[^/]+/u, cdn);
+}
+
 /**
  * Mutation: Generates a short-lived Convex upload URL for uploading raw file bytes.
  */
@@ -44,8 +50,10 @@ export const saveFile = mutation({
       }
     }
 
-    const publicUrl = await ctx.storage.getUrl(args.storageId);
+    const rawUrl = await ctx.storage.getUrl(args.storageId);
+    const publicUrl = toCdnUrl(rawUrl);
     const now = Date.now();
+
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -124,10 +132,10 @@ export const getFile = query({
 
     if (!file) return null;
 
-    const freshUrl = await ctx.storage.getUrl(file.storageId);
+    const freshUrl = toCdnUrl(await ctx.storage.getUrl(file.storageId));
     return {
       ...file,
-      url: freshUrl ?? file.url,
+      url: freshUrl ?? toCdnUrl(file.url ?? null) ?? file.url,
     };
   },
 });
@@ -154,7 +162,7 @@ export const listFiles = query({
     return await Promise.all(
       matched.map(async (file) => ({
         ...file,
-        url: (await ctx.storage.getUrl(file.storageId)) ?? file.url,
+        url: toCdnUrl(await ctx.storage.getUrl(file.storageId)) ?? toCdnUrl(file.url ?? null) ?? file.url,
       })),
     );
   },
@@ -228,6 +236,27 @@ export const getUrl = query({
     storageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
-    return await ctx.storage.getUrl(args.storageId);
+    return toCdnUrl(await ctx.storage.getUrl(args.storageId));
   },
 });
+
+/**
+ * Migration: Updates all stored files in storedFiles table to use the CDN URL.
+ */
+export const migrateStoredFileUrlsToCdn = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const files = await ctx.db.query("storedFiles").collect();
+    let updated = 0;
+    for (const f of files) {
+      const cdnUrl = toCdnUrl(f.url ?? null);
+      if (cdnUrl && cdnUrl !== f.url) {
+        await ctx.db.patch(f._id, { url: cdnUrl });
+        updated++;
+      }
+    }
+    return { total: files.length, updated };
+  },
+});
+
+
