@@ -113,7 +113,7 @@ export async function executePendingSubmissions(): Promise<SubmissionRunResult> 
                request_digest, attempt_count, seed, requested_duration_seconds,
                provider_duration_seconds, public_reference_url, provider_receipt_json
         FROM agnes_scene_generations
-        WHERE series_id = ? AND episode_number = ? AND status = 'pending' AND provider_task_id IS NULL
+        WHERE series_id = ? AND episode_number = ? AND status = 'pending'
         ORDER BY scene_number ASC
       `,
       args: [ep.series_id, ep.episode_number],
